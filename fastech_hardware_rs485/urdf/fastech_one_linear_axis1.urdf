@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<robot name="fastech_one_linear_axis">
+  <link name="base_link"/>
+  <link name="axis_link"/>
+
+  <!-- Linear axis (meters) -->
+  <joint name="x_axis" type="prismatic">
+    <parent link="base_link"/>
+    <child link="axis_link"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.50" upper="0.50" effort="1" velocity="0.20"/>
+  </joint>
+
+  <ros2_control name="FastechPlusR" type="system">
+    <hardware>
+        <plugin>fastech_hardware/FastechSystem</plugin>
+
+        <!-- IMPORTANT: FASTECH Connect wants a port string -->
+        <param name="port_name">ttyUSB0</param>
+
+        <!-- This is the nPortID handle you choose (keep your existing port_no=1) -->
+        <param name="port_no">0</param>
+
+        <param name="baudrate">115200</param>
+        <param name="slave_id">2</param>
+
+        <param name="pulses_per_rev">4000</param>
+        <param name="travel_mm_per_motor_rev">9.42</param>
+
+        <param name="velocity_pps">5000</param>
+    </hardware>
+
+
+    <joint name="x_axis">
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+</robot>

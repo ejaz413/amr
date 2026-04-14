@@ -1,0 +1,37 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 10
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    # --- Separate position controllers (1 joint each) ---
+    x_axis_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    y_axis_controller:
+      type: forward_command_controller/ForwardCommandController
+
+    z_axis_controller:
+      type: forward_command_controller/ForwardCommandController
+
+
+x_axis_controller:
+  ros__parameters:
+    joints:
+      - x_joint
+    interface_name: position
+
+
+y_axis_controller:
+  ros__parameters:
+    joints:
+      - y_joint
+    interface_name: position
+
+
+z_axis_controller:
+  ros__parameters:
+    joints:
+      - z_joint
+    interface_name: position

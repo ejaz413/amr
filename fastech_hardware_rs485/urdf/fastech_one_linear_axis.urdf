@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<robot name="fastech_three_axis">
+
+  <!-- Links -->
+  <link name="base_link"/>
+  <link name="x_link"/>
+  <link name="y_link"/>
+  <link name="z_link"/>
+
+  <!-- Joint 1: X linear axis (meters) - Motor 1 -->
+  <joint name="x_joint" type="prismatic">
+    <parent link="base_link"/>
+    <child  link="x_link"/>
+    <axis xyz="1 0 0"/>
+    <!-- +/- 0.5 m range, example -->
+    <limit lower="-0.50" upper="0.50" effort="1.0" velocity="0.50"/>
+  </joint>
+
+  <!-- Joint 2: Y linear axis (meters) - Motor 2 -->
+  <joint name="y_joint" type="prismatic">
+    <parent link="x_link"/>
+    <child  link="y_link"/>
+    <axis xyz="0 1 0"/>
+    <!-- example limits, adjust as needed -->
+    <limit lower="-0.20" upper="0.20" effort="1.0" velocity="0.20"/>
+  </joint>
+
+  <!-- Joint 3: Z rotary axis (radians) - Motor 3 -->
+  <joint name="z_joint" type="revolute">
+    <parent link="y_link"/>
+    <child  link="z_link"/>
+    <axis xyz="0 0 1"/>
+    <!-- +/- 360 deg in radians, just example -->
+    <limit lower="-6.283" upper="6.283" effort="1.0" velocity="1.0"/>
+  </joint>
+
+  <!-- ================= ros2_control block ================= -->
+  <ros2_control name="FastechPlusR" type="system">
+    <hardware>
+      <plugin>fastech_hardware_rs485/FastechSystem</plugin>
+
+      <!-- Shared FASTECH communication parameters -->
+      <param name="port_name">ttyUSB1</param>   <!-- or /dev/ttyUSB0 depending on your code -->
+      <param name="port_id">0</param>          <!-- same as your DLL config -->
+      <param name="baudrate">115200</param>
+    </hardware>
+
+    <!-- Joint 1 (X) - Motor 1: 4000 ppr, 9.42 mm/rev -->
+    <joint name="x_joint">
+      <command_interface name="position"/>
+      <state_interface   name="position"/>
+      <state_interface   name="velocity"/>
+
+      <param name="slave_id">3</param>
+      <param name="pulses_per_rev">4000</param>
+      <param name="travel_mm_per_motor_rev">9.42</param>
+      <!-- ~0.05 m/s -->
+      <param name="velocity_pps">20000</param>
+    </joint>
+
+    <!-- Joint 2 (Y) - Motor 2: 10000 ppr, 5:1 gear, 1.18261 mm/rev (already after gear) -->
+    <joint name="y_joint">
+      <command_interface name="position"/>
+      <state_interface   name="position"/>
+      <state_interface   name="velocity"/>
+
+      <param name="slave_id">4</param>
+      <param name="pulses_per_rev">10000</param>
+      <param name="travel_mm_per_motor_rev">1.18261</param>
+      <!-- ~0.01 m/s -->
+      <param name="velocity_pps">80000</param>
+    </joint>
+
+    <!-- Joint 3 (Z rotary) - Motor 3: 16000 ppr, 180:1, 2 deg per motor rev -->
+    <joint name="z_joint">
+      <command_interface name="position"/>
+      <state_interface   name="position"/>
+      <state_interface   name="velocity"/>
+
+      <param name="slave_id">5</param>
+      <param name="pulses_per_rev">16000</param>
+      <!-- 2 degrees per motor revolution at the output -->
+      <param name="travel_deg_per_motor_rev">2.0</param>
+      <!-- ~30 deg/s -->
+      <param name="velocity_pps">80000</param>
+    </joint>
+
+  </ros2_control>
+
+</robot>

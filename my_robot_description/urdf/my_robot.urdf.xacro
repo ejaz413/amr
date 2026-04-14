@@ -1,0 +1,156 @@
+<?xml version="1.0"?>
+<robot name="my_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <link name="base_link"/>
+  <link name="left_wheel_link"/>
+  <link name="right_wheel_link"/>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0 0.256 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0 -0.256 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <ros2_control name="FastechPlusE" type="system">
+    <hardware>
+      <plugin>fastech_hardware/FastechPlusESystem</plugin>
+    </hardware>
+
+    <!-- Left motor @ 192.168.0.2 -->
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+
+      <param name="ip">192.168.0.1</param>
+      <param name="bd_id">0</param>
+      <param name="comm_type">udp</param>
+
+      <param name="pulses_per_rev">50000</param>
+      <param name="travel_deg_per_motor_rev">3.60</param>
+      <param name="deadband_pps">10</param>
+      <param name="dir_sign">1</param>
+    </joint>
+
+    <!-- Right motor @ 192.168.0.3 -->
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+
+      <param name="ip">192.168.0.2</param>
+      <param name="bd_id">1</param>
+      <param name="comm_type">udp</param>
+
+      <param name="pulses_per_rev">50000</param>
+      <param name="travel_deg_per_motor_rev">3.60</param>
+      <param name="deadband_pps">10</param>
+
+      <!-- often required -->
+      <param name="dir_sign">-1</param>
+    </joint>
+  </ros2_control>
+
+  <!-- ===== Fastech 3-axis kinematic chain ===== -->
+
+    <!-- Mount Fastech base somewhere on the robot base.
+        If your root is not 'base_link', change the parent link name. -->
+    <link name="fastech_base_link"/>
+    <link name="x_link"/>
+    <link name="y_link"/>
+    <link name="z_link"/>
+
+    <!-- where the Fastech rail is bolted on the robot -->
+    <joint name="fastech_mount_joint" type="fixed">
+        <parent link="base_link"/>          <!-- change if your base link has another name -->
+        <child  link="fastech_base_link"/>
+        <!-- adjust pose so it matches your mechanical design -->
+        <origin xyz="0 0 0.5" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Joint 1: X linear axis (meters) - Motor 2 -->
+    <joint name="x_joint" type="prismatic">
+        <parent link="fastech_base_link"/>
+        <child  link="x_link"/>
+        <axis xyz="1 0 0"/>
+        <!-- motion range example: ±0.5 m -->
+        <limit lower="-0.20" upper="0.10" effort="1.0" velocity="0.20"/>
+    </joint>
+
+    <!-- Joint 2: Y linear axis (meters) - Motor 3 -->
+    <joint name="y_joint" type="prismatic">
+        <parent link="x_link"/>
+        <child  link="y_link"/>
+        <axis xyz="0 1 0"/>
+        <!-- adjust to your real stroke -->
+        <limit lower="-0.20" upper="0.20" effort="1.0" velocity="0.50"/>
+    </joint>
+
+    <!-- Joint 3: Z rotary axis (radians) - Motor 4 -->
+    <joint name="z_joint" type="revolute">
+        <parent link="y_link"/>
+        <child  link="z_link"/>
+        <axis xyz="0 0 1"/>
+        <!-- ±360° (6.283 rad) example -->
+        <limit lower="-6.283" upper="6.283" effort="1.0" velocity="0.50"/>
+    </joint>
+
+      <!-- ===== Fastech 3-axis ros2_control hardware ===== -->
+  <ros2_control name="FastechPlusR" type="system">
+    <hardware>
+      <plugin>fastech_hardware_rs485/FastechSystem</plugin>
+
+      <!-- Shared FASTECH communication parameters -->
+      <param name="port_name">fastech_rs485</param>   <!-- or /dev/ttyUSB0; your FastechSystem handles both -->
+      <param name="port_id">0</param>
+      <param name="baudrate">115200</param>
+    </hardware>
+
+    <!-- Joint 1 (X) - Motor 2: 4000 ppr, 9.42 mm/rev -->
+    <joint name="x_joint">
+      <command_interface name="position"/>
+      <state_interface   name="position"/>
+      <state_interface   name="velocity"/>
+
+      <param name="slave_id">3</param>
+      <param name="pulses_per_rev">4000</param>
+      <param name="travel_mm_per_motor_rev">9.42</param>
+      <param name="velocity_pps">5000</param>  <!-- increase later if needed -->
+    </joint>
+
+    <!-- Joint 2 (Y) - Motor 3: 10000 ppr, 5:1, 1.18261 mm/rev (already after gear) -->
+    <joint name="y_joint">
+      <command_interface name="position"/>
+      <state_interface   name="position"/>
+      <state_interface   name="velocity"/>
+
+      <param name="slave_id">4</param>
+      <param name="pulses_per_rev">8456000</param>
+      <param name="travel_mm_per_motor_rev">1.18261</param>
+      <param name="velocity_pps">50000</param>
+    </joint>
+
+    <!-- Joint 3 (Z rotary) - Motor 4: 16000 ppr, 180:1, 2° per motor rev -->
+    <joint name="z_joint">
+      <command_interface name="position"/>
+      <state_interface   name="position"/>
+      <state_interface   name="velocity"/>
+
+      <param name="slave_id">5</param>
+      <param name="pulses_per_rev">16000</param>
+      <param name="travel_deg_per_motor_rev">2.0</param>
+      <param name="velocity_pps">5000</param>
+    </joint>
+  </ros2_control>
+
+
+
+</robot>

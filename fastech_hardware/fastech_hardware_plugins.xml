@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="fastech_hardware">
+  <class
+    name="fastech_hardware/FastechPlusESystem"
+    type="fastech_hardware::FastechPlusESystem"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>FASTECH Plus-E Ethernet multi-joint system</description>
+  </class>
+</library>

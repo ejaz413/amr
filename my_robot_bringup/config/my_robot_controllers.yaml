@@ -1,0 +1,60 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 4
+    use_sim_time: false
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+    # --- Fastech axes ---
+    x_axis_controller:
+      type: forward_command_controller/ForwardCommandController
+    y_axis_controller:
+      type: forward_command_controller/ForwardCommandController
+    z_axis_controller:
+      type: forward_command_controller/ForwardCommandController
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names:  ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    wheel_radius: 0.085
+    wheel_separation: 0.436   # TODO: set your REAL track width (meters)
+
+    odom_frame_id: "odom"
+    base_frame_id: "base_link"
+    enable_odom_tf: true
+
+    pose_covariance_diagonal:  [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+
+    publish_rate: 50.0
+    use_stamped_vel: true
+
+    linear.x.max_velocity:  0.05
+    linear.x.min_velocity: -0.05
+    angular.z.max_velocity: 0.20
+    angular.z.min_velocity: -0.20
+
+#------------------------
+# Fastech axes (ForwardCommandController)
+# ------------------------
+
+x_axis_controller:
+  ros__parameters:
+    joints: ["x_joint"]
+    interface_name: "position"
+
+y_axis_controller:
+  ros__parameters:
+    joints: ["y_joint"]
+    interface_name: "position"
+
+z_axis_controller:
+  ros__parameters:
+    joints: ["z_joint"]
+    interface_name: "position"

@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="fastech_hardware_rs485">
+  <class
+    name="fastech_hardware_rs485/FastechSystem"
+    type="fastech_hardware_rs485::FastechSystem"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>FASTECH EziMOTIONPlusR single-axis linear ros2_control SystemInterface</description>
+  </class>
+</library>
