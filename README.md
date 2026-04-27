@@ -34,18 +34,34 @@ The project is a ROS 2 Humble based mobile robot system that uses:
 
 ## 3. Recommended Workspace Structure
 
+The current ROS 2 workspace name is:
+
+```text
+amr_ws
+```
+
+The project source directory is:
+
+```bash
+~/amr_ws/src
+```
+
 The current project workspace contains the following main ROS 2 packages:
 
 ```text
-mobile_robot_ws/
+amr_ws/
 └── src/
     ├── fastech_hardware/
     │   ├── config/
-    │   │   ├── controllers.yaml
     │   │   └── controllers1.yaml
     │   ├── include/
+    │   │   └── fastech_hardware/
+    │   │       ├── include/
+    │   │       └── fastech_plus_e_system.hpp
     │   ├── launch/
     │   ├── scripts/
+    │   │   ├── fastech_teleop_gu.py
+    │   │   └── fastech_teleop_gui.py
     │   ├── src/
     │   │   └── fastech_plus_e_system.cpp
     │   ├── urdf/
@@ -69,9 +85,13 @@ mobile_robot_ws/
     │   └── package.xml
     │
     ├── lvs_driver/
+    │
     ├── my_robot_bringup/
     │   ├── config/
+    │   │   └── my_robot_controllers.yaml
     │   ├── launch/
+    │   │   ├── my_robot.launch.py
+    │   │   └── my_robot.launch.xml
     │   ├── CMakeLists.txt
     │   └── package.xml
     │
@@ -87,7 +107,7 @@ Package roles:
 
 | Package | Purpose |
 |---|---|
-| `fastech_hardware` | Controls the differential-drive wheel motors using the Fastech E Plus SDK. This package is used for the mobile base left/right wheel motion. |
+| `fastech_hardware` | Controls the differential-drive wheel motors using the Fastech E Plus SDK. This package is used for the mobile base left/right wheel motion. The GUI node is also included in this package under the `scripts/` folder. |
 | `fastech_hardware_rs485` | Controls the X, Y, and Z joints using RS-485 communication. This package is used for the manipulator or linear-axis motion. |
 | `lvs_driver` | Laser vision sensor driver package. It publishes LVS profile, point, status, and related sensor data. |
 | `my_robot_bringup` | Main startup package. It contains launch files and controller configuration files. |
@@ -283,10 +303,14 @@ Package name:
 fastech_hardware
 ```
 
-Main file shown in the current project tree:
+Main files shown in the current project tree:
 
 ```text
+fastech_hardware/include/fastech_hardware/fastech_plus_e_system.hpp
 fastech_hardware/src/fastech_plus_e_system.cpp
+fastech_hardware/scripts/fastech_teleop_gui.py
+fastech_hardware/config/controllers1.yaml
+fastech_hardware/fastech_hardware_plugins.xml
 ```
 
 Purpose:
@@ -296,10 +320,13 @@ Purpose:
 - Receives wheel commands from the ROS 2 controller layer.
 - Converts ROS 2 wheel velocity commands into Fastech motor driver commands.
 - This package is mainly related to the mobile base motion: forward, reverse, left turn, right turn, and stop.
+- The GUI node is included in the `scripts/` folder of this same package.
 
 Typical controller relationship:
 
 ```text
+fastech_teleop_gui.py
+        ▼
 /diff_drive_controller/cmd_vel
         ▼
 diff_drive_controller
@@ -315,8 +342,9 @@ Typical files:
 
 ```text
 fastech_hardware/
-├── config/controllers.yaml
 ├── config/controllers1.yaml
+├── include/fastech_hardware/fastech_plus_e_system.hpp
+├── scripts/fastech_teleop_gui.py
 ├── src/fastech_plus_e_system.cpp
 ├── fastech_hardware_plugins.xml
 ├── CMakeLists.txt
@@ -325,7 +353,473 @@ fastech_hardware/
 
 ---
 
-#### E. Fastech RS-485 Hardware Package for X/Y/Z Joints
+#### E. Fastech Hardware Lifecycle Operation
+
+The `fastech_hardware` package works as a `ros2_control` hardware plugin. In ROS 2 control, the hardware is not simply started as a normal topic node. Instead, it is loaded by the `controller_manager` and controlled through lifecycle-style hardware callbacks.
+
+The important concept is:
+
+```text
+Launch file
+   ▼
+robot_description / URDF
+   ▼
+ros2_control_node / controller_manager
+   ▼
+pluginlib loads fastech_hardware plugin
+   ▼
+Hardware lifecycle callbacks run
+   ▼
+Controllers send commands
+   ▼
+read() / write() loop controls real motors
+```
+
+### E.1 Hardware Plugin Loading
+
+The hardware plugin is registered in:
+
+```text
+fastech_hardware/fastech_hardware_plugins.xml
+```
+
+The CMake and package files export this plugin so that `controller_manager` can load it.
+
+Typical loading flow:
+
+| Step | What Happens |
+|---:|---|
+| 1 | `my_robot.launch.py` starts `ros2_control_node`. |
+| 2 | The robot URDF is loaded through `robot_description`. |
+| 3 | The URDF contains a `<ros2_control>` hardware plugin name. |
+| 4 | `controller_manager` searches the plugin from `fastech_hardware_plugins.xml`. |
+| 5 | `fastech_plus_e_system.cpp` is loaded as the actual hardware interface. |
+| 6 | Lifecycle callbacks such as `on_init`, `on_configure`, and `on_activate` are called. |
+
+---
+
+### E.2 ros2_control Hardware Lifecycle Sequence
+
+The normal lifecycle sequence is:
+
+```text
+on_init()
+   ▼
+on_configure()
+   ▼
+on_activate()
+   ▼
+read()  ─┐
+write() ─┘ repeated continuously during control loop
+   ▼
+on_deactivate()
+   ▼
+on_cleanup() / shutdown
+```
+
+Simple meaning:
+
+| Function | Simple Meaning | Main Job in This Project |
+|---|---|---|
+| `on_init()` | Read basic hardware information | Read joint names, parameters, motor IDs, conversion values, and prepare variables. |
+| `on_configure()` | Prepare hardware connection | Initialize the Fastech E Plus SDK, open communication, check motor driver connection, and prepare the system. |
+| `on_activate()` | Start real control | Enable servo, reset command/state values, clear alarms if required, and make motors ready to move. |
+| `read()` | Read motor feedback | Read actual wheel position, velocity, and status from the Fastech drivers and update ROS 2 state interfaces. |
+| `write()` | Send motor command | Receive commands from ROS 2 controllers and send velocity/stop commands to the Fastech E Plus SDK. |
+| `on_deactivate()` | Stop real control safely | Stop motors, disable movement command, and optionally servo off. |
+| `on_cleanup()` | Release resources | Close communication and reset internal variables if implemented. |
+| `on_shutdown()` | Final shutdown | Stop motors and close communication during program exit if implemented. |
+| `on_error()` | Error handling | Stop motors and protect the system if a serious error happens if implemented. |
+
+---
+
+### E.3 `on_init()` Explanation
+
+`on_init()` is called first when the hardware plugin is created.
+
+This function should not move the motor. It should only prepare the internal software values.
+
+Typical jobs:
+
+- Read hardware information from URDF.
+- Check the number of joints.
+- Read joint names, for example:
+
+```text
+left_wheel_joint
+right_wheel_joint
+```
+
+- Prepare state variables:
+
+```text
+position
+velocity
+```
+
+- Prepare command variables:
+
+```text
+velocity command
+```
+
+- Read hardware parameters such as:
+
+```text
+motor ID
+gear ratio
+wheel radius
+port name
+baudrate
+counts per revolution
+```
+
+Expected result:
+
+```text
+Hardware object is created, but motors are not moving yet.
+```
+
+---
+
+### E.4 `on_configure()` Explanation
+
+`on_configure()` is called when the hardware is moved into the configured state.
+
+This is usually where the real hardware connection is prepared.
+
+Typical jobs for `fastech_hardware`:
+
+- Load or initialize the Fastech E Plus SDK.
+- Open communication to the Fastech motor drivers.
+- Check if the motor drivers are connected.
+- Check motor IDs.
+- Check driver status.
+- Prepare position and velocity variables.
+- Do not start motion yet.
+
+Expected result:
+
+```text
+Fastech communication is ready, but robot is not actively moving yet.
+```
+
+If connection fails, the hardware should return an error so the controller does not start with unsafe hardware.
+
+---
+
+### E.5 `on_activate()` Explanation
+
+`on_activate()` is called when the hardware becomes active.
+
+This is the stage where the motors become ready to receive real commands.
+
+Typical jobs:
+
+- Reset command values to zero.
+- Reset state values if needed.
+- Clear motor alarm if required.
+- Enable servo if the drive requires servo ON.
+- Prepare safe zero-speed output.
+- Confirm that both left and right wheel motors are ready.
+
+Expected result:
+
+```text
+Robot is ready to move when the controller sends velocity commands.
+```
+
+Important safety point:
+
+```text
+on_activate() should not suddenly move the robot.
+```
+
+It should prepare the motor but keep command speed at zero until the controller sends a command.
+
+---
+
+### E.6 `read()` Explanation
+
+`read()` is called repeatedly by `controller_manager` during the control loop.
+
+This function transfers real motor feedback into ROS 2.
+
+Typical jobs:
+
+- Read actual motor position from Fastech drive.
+- Read actual motor velocity from Fastech drive.
+- Read alarm or status bits if implemented.
+- Convert motor-side values into ROS-side values.
+- Update state interfaces for each wheel joint.
+
+Concept:
+
+```text
+Fastech driver feedback
+        ▼
+read()
+        ▼
+ROS 2 state interfaces
+        ▼
+/joint_states
+        ▼
+odometry / GUI / diagnostics
+```
+
+Example state information:
+
+| State | Meaning |
+|---|---|
+| Wheel position | Used for odometry and joint state publishing |
+| Wheel velocity | Used for controller feedback and status display |
+| Motor status | Used for error checking and GUI status |
+
+Important note:
+
+```text
+read() does not send motion commands.
+```
+
+It only reads the current hardware state.
+
+---
+
+### E.7 `write()` Explanation
+
+`write()` is also called repeatedly by `controller_manager` during the control loop.
+
+This function transfers ROS 2 controller commands to the real motor driver.
+
+Typical jobs:
+
+- Receive target wheel velocity from `diff_drive_controller`.
+- Convert ROS units to Fastech driver units.
+- Send velocity commands to left and right wheel motors through the Fastech E Plus SDK.
+- Send stop command when target velocity is zero.
+- Protect the motor if command is outside limit.
+
+Concept:
+
+```text
+diff_drive_controller command
+        ▼
+ROS 2 command interfaces
+        ▼
+write()
+        ▼
+Fastech E Plus SDK command
+        ▼
+Left / right wheel motors
+```
+
+Typical command conversion:
+
+| ROS Side | Hardware Side |
+|---|---|
+| rad/s wheel velocity | motor rpm, pulse speed, or driver velocity unit |
+| positive velocity | forward motor direction |
+| negative velocity | reverse motor direction |
+| zero velocity | stop command |
+
+Important note:
+
+```text
+write() is where the real motor command is sent.
+```
+
+If the robot moves in the wrong direction, the direction sign or left/right motor mapping should be checked in this stage.
+
+---
+
+### E.8 `on_deactivate()` Explanation
+
+`on_deactivate()` is called when the hardware is stopped or controllers are deactivated.
+
+Typical jobs:
+
+- Send stop command to left and right wheel motors.
+- Set command value to zero.
+- Disable motion output.
+- Optionally turn servo OFF depending on the safety design.
+- Keep communication open or close it depending on implementation.
+
+Expected result:
+
+```text
+Robot stops safely and no further motion command is sent.
+```
+
+---
+
+### E.9 Control Loop Timing
+
+The control loop is usually defined by the controller manager update rate in the YAML file.
+
+Example:
+
+```yaml
+controller_manager:
+  ros__parameters:
+    update_rate: 50
+```
+
+If `update_rate` is 50 Hz:
+
+```text
+read() and write() are called about 50 times per second.
+```
+
+Control loop concept:
+
+```text
+Every cycle:
+1. read actual wheel state
+2. controller calculates required command
+3. write command to motor driver
+4. repeat
+```
+
+---
+
+### E.10 Relationship Between GUI and Hardware Lifecycle
+
+The GUI node in:
+
+```text
+fastech_hardware/scripts/fastech_teleop_gui.py
+```
+
+is not the same as the hardware lifecycle plugin.
+
+The GUI only publishes ROS commands. It does not directly run `on_configure()`, `on_activate()`, `read()`, or `write()`.
+
+Relationship:
+
+```text
+GUI button pressed
+      ▼
+GUI publishes /diff_drive_controller/cmd_vel
+      ▼
+diff_drive_controller receives command
+      ▼
+controller_manager calls write()
+      ▼
+fastech_hardware sends command to motor
+```
+
+This means:
+
+| Part | Job |
+|---|---|
+| GUI | User interface and command publisher |
+| `diff_drive_controller` | Converts robot velocity into wheel velocity |
+| `fastech_hardware` | Sends real command to Fastech wheel motor drivers |
+| Fastech E Plus SDK | Low-level motor driver communication |
+
+---
+
+### E.11 Full Differential Wheel Control Flow
+
+```text
+Operator presses Forward button
+        ▼
+fastech_teleop_gui.py publishes velocity command
+        ▼
+/diff_drive_controller/cmd_vel
+        ▼
+diff_drive_controller calculates wheel velocity
+        ▼
+command interface is updated
+        ▼
+fastech_hardware::write() is called
+        ▼
+Fastech E Plus SDK sends command
+        ▼
+Left and right wheels rotate forward
+        ▼
+fastech_hardware::read() reads feedback
+        ▼
+/joint_states and /odom are updated
+        ▼
+GUI/status display can show robot movement
+```
+
+---
+
+### E.12 Common Lifecycle States
+
+| Lifecycle State | Meaning in This Project |
+|---|---|
+| `unconfigured` | Hardware plugin exists but communication is not ready. |
+| `inactive` | Hardware is configured but not actively sending motion commands. |
+| `active` | Hardware is ready and `read()` / `write()` are running. |
+| `finalized` | Hardware is shut down. |
+| `error` | Hardware failed and should stop safely. |
+
+---
+
+### E.13 Useful Lifecycle / Controller Check Commands
+
+List controllers:
+
+```bash
+ros2 control list_controllers
+```
+
+List hardware components:
+
+```bash
+ros2 control list_hardware_components
+```
+
+List hardware interfaces:
+
+```bash
+ros2 control list_hardware_interfaces
+```
+
+Deactivate a controller:
+
+```bash
+ros2 control switch_controllers --deactivate diff_drive_controller
+```
+
+Activate a controller:
+
+```bash
+ros2 control switch_controllers --activate diff_drive_controller
+```
+
+Check if command topic exists:
+
+```bash
+ros2 topic list | grep cmd_vel
+```
+
+Echo command topic:
+
+```bash
+ros2 topic echo /diff_drive_controller/cmd_vel
+```
+
+---
+
+### E.14 Typical Problems Related to Lifecycle
+
+| Problem | Likely Cause | Check / Solution |
+|---|---|---|
+| Controller is loaded but not active | Controller was not activated by launch file | `ros2 control list_controllers` |
+| `subscriber is inactive` warning | `diff_drive_controller` is not active | Activate controller or fix launch sequence |
+| Motor does not move although GUI publishes command | Hardware plugin not active or `write()` not sending command | Check controller and hardware state |
+| Odometry does not update | `read()` is not updating wheel position/velocity | Check Fastech feedback reading logic |
+| Robot moves opposite direction | Motor direction sign or joint mapping is wrong | Check `write()` conversion and left/right mapping |
+| Robot moves suddenly after launch | Old command value not reset | Set command values to zero in `on_activate()` |
+| Stop button does not stop motor | Zero command not converted to stop command | Check `write()` zero-speed handling |
+
+---
+
+#### F. Fastech RS-485 Hardware Package for X/Y/Z Joints
 
 Package name:
 
@@ -1914,8 +2408,3 @@ sudo usermod -aG dialout $USER
 
 ---
 
-# Appendix B — Revision History
-
-| Revision | Date | Description |
-|---|---|---|
-| v1.0 | Draft | Hardware-focused first manual prepared from current project notes |
