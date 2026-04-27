@@ -34,28 +34,66 @@ The project is a ROS 2 Humble based mobile robot system that uses:
 
 ## 3. Recommended Workspace Structure
 
-A recommended ROS 2 workspace structure is:
+The current project workspace contains the following main ROS 2 packages:
 
-```bash
-~/mobile_robot_ws/
-├── src/
-│   ├── mobile_robot_description/
-│   ├── mobile_robot_bringup/
-│   ├── mobile_robot_control/
-│   ├── fastech_hardware/
-│   └── maxon_epos_hardware/
-└── install/
+```text
+mobile_robot_ws/
+└── src/
+    ├── fastech_hardware/
+    │   ├── config/
+    │   │   ├── controllers.yaml
+    │   │   └── controllers1.yaml
+    │   ├── include/
+    │   ├── launch/
+    │   ├── scripts/
+    │   ├── src/
+    │   │   └── fastech_plus_e_system.cpp
+    │   ├── urdf/
+    │   ├── CMakeLists.txt
+    │   ├── fastech_hardware_plugins.xml
+    │   └── package.xml
+    │
+    ├── fastech_hardware_rs485/
+    │   ├── config/
+    │   │   ├── controllers.yaml
+    │   │   └── controllers1.yaml
+    │   ├── include/
+    │   ├── launch/
+    │   ├── scripts/
+    │   ├── src/
+    │   │   ├── fastech_system.cpp
+    │   │   └── fastech_system1.cpp
+    │   ├── urdf/
+    │   ├── CMakeLists.txt
+    │   ├── fastech_hardware_plugins.xml
+    │   └── package.xml
+    │
+    ├── lvs_driver/
+    ├── my_robot_bringup/
+    │   ├── config/
+    │   ├── launch/
+    │   ├── CMakeLists.txt
+    │   └── package.xml
+    │
+    └── my_robot_description/
+        ├── launch/
+        ├── rviz/
+        ├── urdf/
+        ├── CMakeLists.txt
+        └── package.xml
 ```
 
-Recommended package roles:
+Package roles:
 
 | Package | Purpose |
 |---|---|
-| `mobile_robot_description` | URDF/Xacro, meshes, robot model |
-| `mobile_robot_bringup` | Launch files, controller YAML files |
-| `mobile_robot_control` | Teleop, GUI, custom ROS nodes |
-| `fastech_hardware` | Fastech motor interface |
-| `maxon_epos_hardware` | EPOS4 / CANopen motor interface |
+| `fastech_hardware` | Controls the differential-drive wheel motors using the Fastech E Plus SDK. This package is used for the mobile base left/right wheel motion. |
+| `fastech_hardware_rs485` | Controls the X, Y, and Z joints using RS-485 communication. This package is used for the manipulator or linear-axis motion. |
+| `lvs_driver` | Laser vision sensor driver package. It publishes LVS profile, point, status, and related sensor data. |
+| `my_robot_bringup` | Main startup package. It contains launch files and controller configuration files. |
+| `my_robot_description` | Robot model package. It contains URDF/Xacro, RViz, and robot description files. |
+
+The Maxon EPOS4 / Kvaser CAN section remains in this manual as a separate hardware communication reference.
 
 ---
 
@@ -98,16 +136,12 @@ GUI / Teleop Node
 
 | Package Name | Main Role | What a New User Should Know |
 |---|---|---|
-| `my_robot_description` or `mobile_robot_description` | Robot model package | Contains URDF/Xacro files that describe the robot frame, wheels, joints, links, sensors, and visual geometry. |
-| `my_robot_bringup` or `mobile_robot_bringup` | Main startup package | Contains launch files and configuration files. This is usually the package that the user launches first. |
-| `my_robot_control` or `mobile_robot_control` | User control package | Contains teleop nodes, GUI nodes, command publishers, and custom operator-side control logic. |
-| `fastech_hardware` | Fastech motor interface package | Connects ROS 2 commands to the Fastech EziMOTION Plus-R motor driver through RS-485 / USB serial. |
-| `maxon_epos_hardware` | Maxon EPOS4 motor interface package | Connects ROS 2 or C++ motor commands to Maxon EPOS4 through CANopen using the Kvaser CAN adapter. |
+| `my_robot_description` | Robot model package | Contains URDF/Xacro files that describe the robot frame, wheels, joints, links, sensors, and visual geometry. |
+| `my_robot_bringup` | Main startup package | Contains launch files and configuration files. This is usually the package that the user launches first. |
+| `fastech_hardware` | Differential wheel control package | Controls the mobile robot left/right wheel motors using the Fastech E Plus SDK. It is connected to the differential-drive controller side. |
+| `fastech_hardware_rs485` | X/Y/Z joint control package | Controls the X, Y, and Z joints through RS-485. It is used for the manipulator/linear-axis motion. |
 | `lvs_driver` | Laser vision sensor driver package | Publishes raw laser profile data from the LVS sensor. Usually publishes topics such as `/lvs/profile`, `/lvs/points`, and `/lvs/status`. |
-| `lvs_pipeline_filter` | LVS filtering package | Receives raw LVS profile data and publishes filtered/processed profile data for easier visualization and tracking. |
-| `lvs_profile_viewer` | LVS visualization package or node | Displays the laser profile as an image/graph for debugging and operator monitoring. |
-
-> Note: The exact package names can be changed depending on the final workspace. If your actual workspace uses `my_robot_*`, keep those names. If the project is delivered as `mobile_robot_*`, update the names consistently in the launch files and documentation.
+| Maxon EPOS4 / Kvaser CAN reference | Separate hardware reference section | The Maxon part is kept as a separate manual section for CANopen setup, Kvaser setup, and EPOS4 testing. |
 
 ---
 
@@ -205,25 +239,15 @@ Important output:
 
 #### C. Control / GUI Package
 
-Typical package name:
+The current screenshot does not show a separate GUI/control package. If a GUI node is added later, it can be placed in a separate package such as:
 
 ```text
 my_robot_control
 ```
 
-Main contents:
+or inside an existing package under a `scripts/` directory.
 
-```text
-my_robot_control/
-├── my_robot_control/
-│   ├── teleop_gui_node.py
-│   ├── motor_control_node.py
-│   └── status_monitor_node.py
-├── setup.py
-└── package.xml
-```
-
-Purpose:
+Purpose of the GUI/control node:
 
 - Provides the operator GUI.
 - Sends vehicle movement commands.
@@ -234,12 +258,6 @@ Purpose:
   - `cm/min`
   - `deg/min`
   - `mm/min`
-
-Typical command:
-
-```bash
-ros2 run my_robot_control teleop_gui_node
-```
 
 Typical vehicle command topic:
 
@@ -257,56 +275,123 @@ Typical axis command topics:
 
 ---
 
-#### D. Fastech Hardware Package
+#### D. Fastech Hardware Package for Differential Wheels
 
-Typical package name:
+Package name:
 
 ```text
 fastech_hardware
 ```
 
+Main file shown in the current project tree:
+
+```text
+fastech_hardware/src/fastech_plus_e_system.cpp
+```
+
 Purpose:
 
-- Communicates with Fastech EziMOTION Plus-R drive.
-- Uses RS-485 serial communication.
-- Sends motor enable, alarm reset, jog, stop, and velocity commands.
-- Can be connected directly to the GUI node or through `ros2_control`.
+- Controls the differential-drive wheel motors.
+- Uses the Fastech E Plus SDK.
+- Receives wheel commands from the ROS 2 controller layer.
+- Converts ROS 2 wheel velocity commands into Fastech motor driver commands.
+- This package is mainly related to the mobile base motion: forward, reverse, left turn, right turn, and stop.
 
-Typical serial device:
+Typical controller relationship:
 
 ```text
-/dev/ttyUSB0
-/dev/ttyUSB1
-/dev/fastech_rs485
+/diff_drive_controller/cmd_vel
+        ▼
+diff_drive_controller
+        ▼
+fastech_hardware
+        ▼
+Fastech E Plus SDK
+        ▼
+Left / Right wheel motors
 ```
 
-Recommended fixed device name:
+Typical files:
 
 ```text
-/dev/fastech_rs485
-```
-
-Main driver library:
-
-```text
-libEziMOTIONPlusR.so
-```
-
-Important functions usually used:
-
-```text
-FAS_Connect
-FAS_Close
-FAS_MoveVelocity
-FAS_MoveStop
-FAS_ServoEnable
-FAS_ServoAlarmReset
-FAS_GetAxisStatus
+fastech_hardware/
+├── config/controllers.yaml
+├── config/controllers1.yaml
+├── src/fastech_plus_e_system.cpp
+├── fastech_hardware_plugins.xml
+├── CMakeLists.txt
+└── package.xml
 ```
 
 ---
 
-#### E. Maxon EPOS Hardware Package
+#### E. Fastech RS-485 Hardware Package for X/Y/Z Joints
+
+Package name:
+
+```text
+fastech_hardware_rs485
+```
+
+Main files shown in the current project tree:
+
+```text
+fastech_hardware_rs485/src/fastech_system.cpp
+fastech_hardware_rs485/src/fastech_system1.cpp
+```
+
+Purpose:
+
+- Controls the X, Y, and Z joints.
+- Uses RS-485 communication.
+- Sends axis jog, velocity, stop, servo, and alarm reset commands.
+- This package is mainly related to manipulator or linear-stage motion, not the wheel base.
+
+Typical controller relationship:
+
+```text
+/x_axis_controller/commands
+/y_axis_controller/commands
+/z_axis_controller/commands
+        ▼
+forward_command_controller
+        ▼
+fastech_hardware_rs485
+        ▼
+RS-485 communication
+        ▼
+X / Y / Z axis motors
+```
+
+Typical files:
+
+```text
+fastech_hardware_rs485/
+├── config/controllers.yaml
+├── config/controllers1.yaml
+├── src/fastech_system.cpp
+├── src/fastech_system1.cpp
+├── fastech_hardware_plugins.xml
+├── CMakeLists.txt
+└── package.xml
+```
+
+Recommended serial device:
+
+```text
+/dev/fastech_rs485
+```
+
+or:
+
+```text
+/dev/ttyUSB0
+/dev/ttyUSB1
+```
+
+---
+
+#### F. Maxon EPOS Hardware Package
 
 Typical package name:
 
@@ -342,7 +427,7 @@ Node 2 → CANopen COB-ID 602
 
 ---
 
-#### F. LVS Driver Package
+#### G. LVS Driver Package
 
 Typical package name:
 
@@ -373,7 +458,7 @@ lvs_driver/msg/LvsProfile
 
 ---
 
-#### G. LVS Filter Package
+#### H. LVS Filter Package
 
 Typical package name:
 
@@ -1379,7 +1464,7 @@ The software is divided into four layers:
 |---|---|---|
 | User layer | Buttons, GUI, manual operation, status display | `teleop_gui_node.py` |
 | ROS control layer | Standard controller interface | `diff_drive_controller`, `forward_command_controller` |
-| Hardware interface layer | Converts ROS commands to real motor driver commands | `fastech_hardware`, `maxon_epos_hardware` |
+| Hardware interface layer | Converts ROS commands to real motor driver commands | `fastech_hardware`, `fastech_hardware_rs485`, Maxon EPOS4 reference section |
 | Sensor processing layer | Reads and filters sensor data | `lvs_driver`, `lvs_pipeline_filter` |
 
 Basic idea:
@@ -1396,7 +1481,20 @@ Sensor → Driver node → Raw topic → Filter node → Filtered topic → GUI 
 
 ---
 
-## 18.2 External ROS 2 Packages Used in This Project
+## 18.2 Project Hardware Package Mapping
+
+| Motion Part | ROS 2 Package | Communication / SDK | Main Use |
+|---|---|---|---|
+| Left/right differential wheels | `fastech_hardware` | Fastech E Plus SDK | Mobile base drive motion |
+| X/Y/Z joints | `fastech_hardware_rs485` | RS-485 | Manipulator or linear-axis control |
+| Laser vision sensor | `lvs_driver` | Ethernet / sensor driver | LVS profile acquisition |
+| Robot startup | `my_robot_bringup` | ROS 2 launch/config | Starts robot system and controllers |
+| Robot model | `my_robot_description` | URDF/Xacro | Defines links, joints, and TF tree |
+| Maxon EPOS4 reference | Hardware manual section | Kvaser CAN / CANopen | Kept as separate hardware reference |
+
+---
+
+## 18.3 External ROS 2 Packages Used in This Project
 
 These are installed from Ubuntu/ROS package manager.
 
@@ -1416,7 +1514,7 @@ These are installed from Ubuntu/ROS package manager.
 
 ---
 
-## 18.3 Important ROS 2 Controllers
+## 18.4 Important ROS 2 Controllers
 
 | Controller | Used For | Main Topic / Output |
 |---|---|---|
@@ -1426,7 +1524,7 @@ These are installed from Ubuntu/ROS package manager.
 
 ---
 
-## 18.4 Example Controller Configuration Concept
+## 18.5 Example Controller Configuration Concept
 
 The controller YAML file usually belongs in the bringup package:
 
@@ -1461,7 +1559,7 @@ The exact joint names must match the URDF/Xacro file.
 
 ---
 
-## 18.5 Important Topics
+## 18.6 Important Topics
 
 | Topic | Direction | Message Type | Purpose |
 |---|---|---|---|
@@ -1479,7 +1577,7 @@ The exact joint names must match the URDF/Xacro file.
 
 ---
 
-## 18.6 How the Mobile Robot Motion Works
+## 18.7 How the Mobile Robot Motion Works
 
 The GUI or teleop node publishes a velocity command:
 
@@ -1516,11 +1614,11 @@ Left wheel  = faster or forward
 Right wheel = slower or reverse
 ```
 
-The hardware interface receives these wheel commands and sends the real command to the motor driver.
+The `fastech_hardware` package receives these wheel commands and sends the real command to the wheel motor drivers through the Fastech E Plus SDK.
 
 ---
 
-## 18.7 How the X/Y/Z Axis Motion Works
+## 18.8 How the X/Y/Z Axis Motion Works
 
 The X/Y/Z manipulator axes are usually controlled with direct command controllers.
 
@@ -1546,7 +1644,7 @@ Example:
 | Z- | Move Z axis negative direction |
 | STOP | Send zero command / stop motor |
 
-For Fastech motors, the hardware node converts this command into Fastech library calls such as:
+For the X/Y/Z joints, the `fastech_hardware_rs485` package converts this command into RS-485 motor commands such as:
 
 ```text
 FAS_MoveVelocity
@@ -1556,7 +1654,7 @@ FAS_ServoAlarmReset
 
 ---
 
-## 18.8 How the LVS Data Flow Works
+## 18.9 How the LVS Data Flow Works
 
 The Laser Vision Sensor driver publishes raw profile data.
 
@@ -1581,7 +1679,7 @@ This structure allows the operator to compare raw and filtered sensor data durin
 
 ---
 
-## 18.9 Recommended Commands for New Users
+## 18.10 Recommended Commands for New Users
 
 ### Source ROS 2
 
@@ -1662,7 +1760,7 @@ ros2 topic echo /lvs/profile_filtered
 
 ---
 
-## 18.10 Recommended New User Startup Procedure
+## 18.11 Recommended New User Startup Procedure
 
 | Step | Command / Check | Expected Result |
 |---:|---|---|
@@ -1681,7 +1779,7 @@ ros2 topic echo /lvs/profile_filtered
 
 ---
 
-## 18.11 Recommended Shutdown Procedure
+## 18.12 Recommended Shutdown Procedure
 
 1. Stop vehicle motion from GUI.
 2. Stop all X/Y/Z axis motion.
