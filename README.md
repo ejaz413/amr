@@ -151,7 +151,8 @@ GUI / Teleop Node
         odometry, joint_states, LVS profile,
         filtered LVS data, motor status
 ```
-![](/home/pavetech/amr_ws/src/Screenshot from 2026-04-27 15-05-03.png)
+
+![Image](Screenshot from 2026-04-27 15-05-03.png)
 
 ### 3.1.2 Main Project Packages
 
