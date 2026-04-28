@@ -1,9 +1,9 @@
-# Mobile Robot Project Manual
+# Magnetic Wheeled Robot Project Manual
 
 **Project:** ROS 2 Humble Mobile Robot with Maxon EPOS4 CANopen Drive and Fastech Motor Control  
 **Document type:** Setup, wiring, installation, testing, and troubleshooting manual  
 **Prepared for:** Pavetech mobile robot / welding automation development  
-**Revision:** Draft v1.0  
+  
 
 ---
 
